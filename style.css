@@ -167,7 +167,7 @@ h4 {
     position: relative;
     display: inline-block;
     color: var(--accent-red);
-    text-shadow: 0 0 10px rgba(213, 43, 30, 0.3);
+    
 }
 
 .z-effect::after {
@@ -1000,3 +1000,4 @@ a:hover::after {
         padding-bottom: max(20px, env(safe-area-inset-bottom));
     }
 }
+
