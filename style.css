@@ -179,7 +179,7 @@ h4 {
     height: 2px;
     background: var(--accent-red);
     transform: skewX(-20deg);
-    box-shadow: 0 0 8px var(--accent-red);
+    
 }
 
 /* Формы */
@@ -1000,4 +1000,5 @@ a:hover::after {
         padding-bottom: max(20px, env(safe-area-inset-bottom));
     }
 }
+
 
