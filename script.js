@@ -7,7 +7,171 @@ let selectedPMUser = null;
 // Бесплатный API для изображений (RapidAPI) - ТВОЙ КЛЮЧ!
 const RAPIDAPI_KEY = 'c5a6ebf560msh36f7d47844004ebp147858jsn99103f967b1d';
 
-// Функция загрузки изображения через RapidAPI
+// ============================================
+// УПРАВЛЕНИЕ ВКЛАДКАМИ
+// ============================================
+
+// Переключение вкладок
+function initTabs() {
+    const tabs = document.querySelectorAll('.tab');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabName = tab.dataset.tab;
+            
+            // Убираем активный класс у всех вкладок
+            tabs.forEach(t => t.classList.remove('active'));
+            
+            // Добавляем активный класс текущей вкладке
+            tab.classList.add('active');
+            
+            // Скрываем весь контент
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Показываем нужный контент
+            const activeContent = document.getElementById(`tab-${tabName}`);
+            if (activeContent) {
+                activeContent.classList.add('active');
+            }
+            
+            // Специфичные действия при переключении
+            if (tabName === 'users') {
+                loadUsers(); // Обновляем список пользователей
+            } else if (tabName === 'pm') {
+                loadPMContacts(); // Загружаем контакты для ЛС
+            } else if (tabName === 'profile') {
+                loadProfile(); // Загружаем данные профиля
+            }
+        });
+    });
+}
+
+// Загрузка контактов для ЛС
+async function loadPMContacts() {
+    const contactsList = document.getElementById('pm-contacts-list');
+    if (!contactsList) return;
+    
+    const { data: users } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('approved', true)
+        .neq('id', currentUser.id)
+        .order('username');
+    
+    contactsList.innerHTML = '';
+    
+    users.forEach(user => {
+        const contact = document.createElement('div');
+        contact.className = `user-item ${user.role === 'admin' ? 'admin' : ''}`;
+        contact.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 32px; height: 32px; background: ${user.role === 'admin' ? 'var(--accent-red)' : 'var(--accent-blue)'}; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
+                    ${user.username[0].toUpperCase()}
+                </div>
+                <div style="flex: 1;">
+                    <div style="font-weight: 600;">${user.username}</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted);">${user.role === 'admin' ? 'Админ' : 'Участник'}</div>
+                </div>
+            </div>
+        `;
+        
+        contact.addEventListener('click', () => {
+            document.querySelectorAll('#pm-contacts-list .user-item').forEach(el => {
+                el.classList.remove('selected');
+            });
+            contact.classList.add('selected');
+            selectedPMUser = user;
+            document.getElementById('pm-receiver').textContent = user.username;
+            document.getElementById('pm-input').disabled = false;
+            document.getElementById('pm-send').disabled = false;
+            loadPrivateMessages(user.id);
+        });
+        
+        contactsList.appendChild(contact);
+    });
+}
+
+// Загрузка профиля
+async function loadProfile() {
+    if (!currentUser) return;
+    
+    document.getElementById('profile-username').textContent = currentUser.username;
+    document.getElementById('profile-avatar').textContent = currentUser.username[0].toUpperCase();
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        document.getElementById('profile-email').textContent = user.email;
+    }
+    
+    document.getElementById('profile-role').textContent = 
+        currentUser.role === 'admin' ? 'Администратор' : 
+        currentUser.role === 'user' ? 'Участник' : 'Заявитель';
+    
+    document.getElementById('profile-status').textContent = 
+        currentUser.approved ? '✅ Активен' : '⏳ Ожидает одобрения';
+    
+    if (currentUser.created_at) {
+        const date = new Date(currentUser.created_at);
+        document.getElementById('profile-created').textContent = 
+            date.toLocaleDateString('ru-RU');
+    }
+}
+
+// Обновление статистики
+async function updateStats() {
+    // Количество пользователей
+    const { count: usersCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('approved', true);
+    
+    document.getElementById('stat-users').textContent = usersCount || 0;
+    
+    // Сообщения сегодня
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const { count: messagesCount } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', today.toISOString());
+    
+    document.getElementById('stat-messages').textContent = messagesCount || 0;
+    
+    // Онлайн (условно)
+    document.getElementById('stat-online').textContent = '1';
+}
+
+// Обновление бейджей
+function updateBadges() {
+    // Проверяем неподтверждённые заявки (только для админов)
+    if (currentUser.role === 'admin') {
+        supabase
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .eq('approved', false)
+            .then(({ count }) => {
+                if (count > 0) {
+                    document.getElementById('pending-badge').style.display = 'inline-block';
+                    document.getElementById('pending-badge-mobile').style.display = 'inline-block';
+                    document.getElementById('pending-badge').textContent = count;
+                    document.getElementById('pending-badge-mobile').textContent = count;
+                } else {
+                    document.getElementById('pending-badge').style.display = 'none';
+                    document.getElementById('pending-badge-mobile').style.display = 'none';
+                }
+            });
+    }
+}
+
+// В функции initDashboard() добавь вызовы:
+// initTabs();
+// updateStats();
+// updateBadges();
+// setInterval(updateStats, 30000); // Обновление статистики каждые 30 секунд
+// setInterval(updateBadges, 10000); // Обновление бейджей каждые 10 секунд
 // Альтернативный API для изображений (бесплатный, без ключа)
 async function uploadImage(file) {
     try {
@@ -152,7 +316,11 @@ async function initDashboard() {
         window.location.href = 'index.html';
         return;
     }
-
+    initTabs();
+    updateStats();
+    updateBadges();
+    setInterval(updateStats, 30000); // Обновление статистики каждые 30 секунд
+    setInterval(updateBadges, 10000); // Обновление бейджей каждые 10 секунд
     // Получаем профиль
     const { data: profile } = await supabase
         .from('profiles')
@@ -682,5 +850,6 @@ async function logout() {
     window.location.href = 'index.html';
 
 }
+
 
 
