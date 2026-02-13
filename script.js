@@ -8,45 +8,48 @@ let selectedPMUser = null;
 const RAPIDAPI_KEY = 'c5a6ebf560msh36f7d47844004ebp147858jsn99103f967b1d';
 
 // Функция загрузки изображения через RapidAPI
+// Альтернативный API для изображений (бесплатный, без ключа)
 async function uploadImage(file) {
     try {
-        // Показываем уведомление о загрузке
         showNotification('🔄 Загрузка изображения...');
         
-        const formData = new FormData();
-        formData.append('image', file);
-
-        const response = await fetch('https://upload-images-hosting-get-url.p.rapidapi.com/upload', {
-            method: 'POST',
-            headers: {
-                'X-RapidAPI-Key': RAPIDAPI_KEY,
-                'X-RapidAPI-Host': 'upload-images-hosting-get-url.p.rapidapi.com'
-            },
-            body: formData
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const base64Image = e.target.result.split(',')[1];
+                    
+                    // Используем бесплатный API
+                    const response = await fetch('https://api.imgur.com/3/image', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Client-ID c7c0b3c9f3b3c9f' // Публичный Client-ID Imgur
+                        },
+                        body: JSON.stringify({
+                            image: base64Image,
+                            type: 'base64'
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showNotification('✅ Изображение загружено!');
+                        resolve(data.data.link);
+                    } else {
+                        reject(new Error('Ошибка загрузки'));
+                    }
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
         });
-
-        if (!response.ok) {
-            throw new Error(`Ошибка загрузки: ${response.status}`);
-        }
-
-        const data = await response.json();
-        
-        // Разные API возвращают по-разному, проверим оба варианта
-        let imageUrl = data.data?.url || data.url || data.image_url;
-        
-        if (!imageUrl) {
-            console.log('Ответ API:', data); // Для отладки
-            throw new Error('Не удалось получить ссылку на изображение');
-        }
-        
-        showNotification('✅ Изображение загружено!');
-        return imageUrl;
         
     } catch (error) {
-        console.error('Ошибка загрузки:', error);
-        showNotification('❌ Ошибка загрузки изображения. Использую локальный просмотр.');
-        
-        // Если API не работает, используем локальный просмотр
+        console.error('Ошибка:', error);
+        showNotification('❌ Ошибка загрузки', 'error');
         return URL.createObjectURL(file);
     }
 }
@@ -679,4 +682,5 @@ async function logout() {
     window.location.href = 'index.html';
 
 }
+
 
