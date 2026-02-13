@@ -278,7 +278,17 @@ async function loadProfile() {
                 currentUser.role === 'admin' ? 'Администратор' : 
                 currentUser.role === 'user' ? 'Участник' : 'Заявитель';
         }
-        
+        // В функции loadProfile добавьте:
+        const notifBtn = document.getElementById('enable-notifications');
+        if (notifBtn) {
+            notifBtn.addEventListener('click', async () => {
+                const success = await subscribeToNotifications();
+                if (success) {
+                    updateNotificationButton();
+                }
+            });
+            updateNotificationButton();
+        }
         if (statusEl) {
             statusEl.textContent = currentUser.approved ? '✅ Активен' : '⏳ Ожидает одобрения';
         }
@@ -818,7 +828,23 @@ function setupRealtimeSubscriptions() {
             }
         )
         .subscribe();
-
+    // В функции setupRealtimeSubscriptions добавьте:
+    // При новом сообщении в ЛС
+    supabase
+        .channel(`private:messages:${currentUser.id}`)
+        .on('postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'private_messages', filter: `receiver_id=eq.${currentUser.id}` },
+            payload => {
+                if (!selectedPMUser || payload.new.sender_id !== selectedPMUser.id) {
+                    // Уведомление о новом ЛС
+                    notifyUser(currentUser.id, '💌 Личное сообщение',
+                        `${payload.new.username}: ${payload.new.content.substring(0, 50)}`,
+                        { senderId: payload.new.sender_id, type: 'pm' }
+                    );
+                }
+            }
+        )
+    .subscribe();
     if (currentUser) {
         supabase
             .channel(`private:messages:${currentUser.id}`)
@@ -1745,6 +1771,7 @@ async function updateNotificationButton() {
         btn.disabled = false;
     }
 }
+
 
 
 
