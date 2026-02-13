@@ -278,17 +278,6 @@ async function loadProfile() {
                 currentUser.role === 'admin' ? 'Администратор' : 
                 currentUser.role === 'user' ? 'Участник' : 'Заявитель';
         }
-        // В функции loadProfile добавьте:
-        const notifBtn = document.getElementById('enable-notifications');
-        if (notifBtn) {
-            notifBtn.addEventListener('click', async () => {
-                const success = await subscribeToNotifications();
-                if (success) {
-                    updateNotificationButton();
-                }
-            });
-            updateNotificationButton();
-        }
         if (statusEl) {
             statusEl.textContent = currentUser.approved ? '✅ Активен' : '⏳ Ожидает одобрения';
         }
@@ -1769,6 +1758,7 @@ async function updateNotificationButton() {
         btn.disabled = false;
     }
 }
+
 
 
 
