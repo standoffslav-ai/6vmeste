@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>6Вместе - Чат класса</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 250px 1fr 300px;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        
+        .sidebar {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .main-chat {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .pm-section {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #0033a0;
+        }
+        
+        .chat-status {
+            font-size: 0.9rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #f0f0f0;
+        }
+        
+        .message-input-area {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .message-input-area input {
+            flex: 1;
+            margin: 0;
+        }
+        
+        .message-input-area button {
+            width: auto;
+            padding: 12px 24px;
+        }
+        
+        .user-item {
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .user-item:hover {
+            background: #e6f0ff;
+        }
+        
+        .user-item.selected {
+            background: #0033a0;
+            color: white;
+        }
+        
+        .pm-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            color: #0033a0;
+            font-weight: 600;
+        }
+        
+        #pm-chat-box {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+        
+        .admin-panel {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff3f0;
+            border-radius: 8px;
+            border-left: 3px solid #d52b1e;
+        }
+        
+        .admin-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        
+        .admin-buttons button {
+            flex: 1;
+            min-width: 120px;
+            padding: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .flag-badge {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(45deg, #fff 33%, #0033a0 33%, #0033a0 66%, #d52b1e 66%);
+            border-radius: 3px;
+            margin-right: 5px;
+        }
+        
+        .z-symbol {
+            font-family: 'Impact', sans-serif;
+            color: #d52b1e;
+            transform: skewX(-10deg);
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="flag-stripe"></div>
+    <div class="dashboard-container">
+        <!-- Левая колонка: Инфо и настройки -->
+        <div class="sidebar fade-in">
+            <h2 style="display: flex; align-items: center;">
+                <span class="flag-badge"></span>
+                6<span class="z-symbol">В</span>месте
+            </h2>
+            <p style="margin: 10px 0; color: #666;">Привет, <strong id="current-username"></strong>!</p>
+            
+            <div class="user-list" id="user-list">
+                <h4>Участники класса:</h4>
+                <!-- Загружается динамически -->
+            </div>
+            
+            <!-- Админ панель (видна только админам) -->
+            <div id="admin-panel" class="admin-panel" style="display: none;">
+                <h4 style="color: #d52b1e; margin-bottom: 10px;">⚡ Админ панель</h4>
+                
+                <div class="admin-buttons">
+                    <button id="close-chat" class="btn-primary btn-danger">Закрыть чат</button>
+                    <button id="open-chat" class="btn-primary">Открыть чат</button>
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <p style="font-size: 0.9rem; margin-bottom: 5px;">Одобрить пользователя:</p>
+                    <select id="user-select" style="margin-bottom: 10px;">
+                        <option value="">Выберите пользователя</option>
+                    </select>
+                    <button id="approve-user" class="btn-primary" style="width: 100%;">✅ Одобрить</button>
+                </div>
+            </div>
+            
+            <p style="font-size: 0.8rem; color: #999; margin-top: 20px; text-align: center;">
+                Сделано с ❤️ для 6 класса
+            </p>
+        </div>
+        <div class="message-input-area">
+    <input type="text" id="message-input" placeholder="Введите сообщение..." disabled>
+    <input type="file" id="image-upload" accept="image/*" style="display: none;" disabled>
+    <button onclick="document.getElementById('image-upload').click()" class="btn-primary" style="width: auto; padding: 12px;" title="Загрузить изображение">📷</button>
+    <button id="send-message" class="btn-primary" disabled>Отправить</button>
+</div>
+        <!-- Центральная колонка: Основной чат -->
+        <div class="main-chat fade-in">
+            <div class="chat-header">
+                <h3>📢 Чат класса <span id="chat-status" class="chat-status">загружается...</span></h3>
+                <span class="timestamp">2026</span>
+            </div>
+            
+            <div class="chat-container" id="chat-box">
+                <!-- Сообщения загружаются сюда -->
+                <div style="text-align: center; color: #999; padding: 20px;">Загрузка сообщений...</div>
+            </div>
+            
+            <div class="message-input-area">
+                <input type="text" id="message-input" placeholder="Введите сообщение..." disabled>
+                <input type="file" id="image-upload" accept="image/*" style="display: none;" disabled>
+                <button onclick="document.getElementById('image-upload').click()" class="btn-primary" style="width: auto; padding: 12px;">📷</button>
+                <button id="send-message" class="btn-primary" disabled>Отправить</button>
+            </div>
+        </div>
+        
+        <!-- Правая колонка: Личные сообщения -->
+        <div class="pm-section fade-in">
+            <div class="pm-header">
+                <span>💬 Личные сообщения</span>
+                <span id="pm-receiver" style="font-size: 0.9rem;">никто не выбран</span>
+            </div>
+            
+            <div id="pm-chat-box">
+                <!-- Личные сообщения загружаются сюда -->
+                <div style="text-align: center; color: #999; padding: 20px;">Выберите пользователя слева</div>
+            </div>
+            
+            <div style="display: flex; gap: 5px;">
+                <input type="text" id="pm-input" placeholder="Личное сообщение..." style="flex: 1; margin: 0;">
+                <button id="pm-send" class="btn-primary" style="width: auto; padding: 12px;">➡️</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

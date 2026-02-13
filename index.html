@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>6Вместе - Вход</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container fade-in">
+        <div class="flag-stripe"></div>
+        <h1>6<span class="z-effect">В</span>месте</h1>
+        <p class="subtitle">Вход в сообщество</p>
+        
+        <form id="login-form">
+            <input type="email" id="email" placeholder="Email" required>
+            <input type="password" id="password" placeholder="Пароль" required>
+            <button type="submit" class="btn-primary">Войти</button>
+        </form>
+        
+        <p>Нет аккаунта? <a href="register.html">Подать заявку</a></p>
+        <div id="error-message" class="error"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
