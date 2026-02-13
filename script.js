@@ -293,18 +293,16 @@ async function loadProfile() {
             statusEl.textContent = currentUser.approved ? '✅ Активен' : '⏳ Ожидает одобрения';
         }
         // В функции loadProfile добавьте:
+        // ПРАВИЛЬНО - только одно объявление
         const notifBtn = document.getElementById('enable-notifications');
         if (notifBtn) {
-            notifBtn.addEventListener('click', requestNotificationPermission);
-    
-            // Обновляем текст кнопки в зависимости от статуса
-            if (Notification.permission === 'granted') {
-                notifBtn.textContent = '✅ Включены';
-                notifBtn.disabled = true;
-            } else if (Notification.permission === 'denied') {
-                notifBtn.textContent = '❌ Заблокированы';
-                notifBtn.disabled = true;
-            }
+            notifBtn.addEventListener('click', async () => {
+                const success = await subscribeToNotifications();
+                if (success) {
+                    updateNotificationButton();
+                }
+            });
+            updateNotificationButton();
         }
         if (createdEl) {
             if (currentUser.created_at) {
@@ -1771,6 +1769,7 @@ async function updateNotificationButton() {
         btn.disabled = false;
     }
 }
+
 
 
 
