@@ -3,21 +3,23 @@ const CACHE_NAME = '6vmeste-v1';
 const VAPID_PUBLIC_KEY = 'BNWb691e0dUue6Buo91VVM5Y578DgqgQ_wkKGBf_qhNDGrzG3iT2VmMJy8TPT-RxqODyjiWA3YZzukAtmoQbdvM';
 
 // Установка service worker
+// В sw.js, в секции install, замените на:
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
+      // Кэшируем только существующие файлы
       return cache.addAll([
         '/',
         '/index.html',
         '/register.html',
         '/dashboard.html',
         '/style.css',
-        '/supabase-config.js',
-        '/icon-192.png',
-        '/icon-512.png',
-        '/badge-72.png'
-      ]);
+        '/supabase-config.js'
+        // Убираем иконки, если их ещё нет
+      ]).catch(error => {
+        console.log('Кэширование пропущено:', error);
+      });
     })
   );
 });
@@ -206,4 +208,5 @@ self.addEventListener('fetch', (event) => {
       return caches.match('/offline.html');
     })
   );
+
 });
