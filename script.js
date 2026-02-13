@@ -1158,7 +1158,6 @@ async function initDashboard() {
     } catch (error) {
         console.error('Ошибка инициализации:', error);
     }
-}
 
 // Очистка при выходе
 window.addEventListener('beforeunload', () => {
@@ -1758,6 +1757,7 @@ async function updateNotificationButton() {
         btn.disabled = false;
     }
 }
+
 
 
 
