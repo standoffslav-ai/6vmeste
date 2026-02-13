@@ -51,35 +51,67 @@ async function uploadImage(file) {
 }
 
 // Регистрация (подача заявки)
+// Регистрация (подача заявки) - ИСПРАВЛЕННАЯ ВЕРСИЯ
 if (document.getElementById('register-form')) {
     document.getElementById('register-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
+        e.preventDefault(); // ОСТАНАВЛИВАЕМ перезагрузку страницы!
+        
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const username = document.getElementById('username').value;
-
+        const messageDiv = document.getElementById('message');
+        
         try {
+            // 1. Регистрация в Supabase Auth
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email,
-                password
+                password,
+                options: {
+                    data: {
+                        username: username // Передаём username в metadata
+                    }
+                }
             });
 
             if (authError) throw authError;
 
-            const { error: profileError } = await supabase
+            // 2. Ждём немного, чтобы триггер сработал
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // 3. Проверяем, создался ли профиль
+            const { data: profile, error: profileError } = await supabase
                 .from('profiles')
-                .insert([{
-                    id: authData.user.id,
-                    username: username,
-                    role: 'applicant',
-                    approved: false
-                }]);
+                .select('*')
+                .eq('id', authData.user.id)
+                .single();
+            
+            if (profileError || !profile) {
+                console.log('Профиль не создался автоматически, создаём вручную...');
+                // Создаём профиль вручную, если триггер не сработал
+                const { error: insertError } = await supabase
+                    .from('profiles')
+                    .insert([{
+                        id: authData.user.id,
+                        username: username,
+                        role: 'applicant',
+                        approved: false
+                    }]);
+                
+                if (insertError) throw insertError;
+            }
 
-            if (profileError) throw profileError;
-
-            document.getElementById('message').innerHTML = '✅ Заявка отправлена! Ждите одобрения админа.';
+            messageDiv.innerHTML = '✅ Заявка отправлена! Ждите одобрения админа.';
+            messageDiv.style.color = 'green';
+            messageDiv.style.display = 'block';
+            
+            // Очищаем форму
+            document.getElementById('register-form').reset();
+            
         } catch (error) {
-            document.getElementById('message').innerHTML = '❌ Ошибка: ' + error.message;
+            console.error('Ошибка регистрации:', error);
+            messageDiv.innerHTML = '❌ Ошибка: ' + error.message;
+            messageDiv.style.color = '#d52b1e';
+            messageDiv.style.display = 'block';
         }
     });
 }
@@ -644,4 +676,5 @@ document.head.appendChild(style);
 async function logout() {
     await supabase.auth.signOut();
     window.location.href = 'index.html';
+
 }
