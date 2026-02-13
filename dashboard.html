@@ -2,226 +2,341 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>6Вместе - Чат класса</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        .dashboard-container {
-            display: grid;
-            grid-template-columns: 250px 1fr 300px;
-            gap: 20px;
-            max-width: 1400px;
-            margin: 20px auto;
-            padding: 20px;
-        }
-        
-        .sidebar {
-            background: white;
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .main-chat {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .pm-section {
-            background: white;
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .chat-header {
+        /* Дополнительные стили для вкладок */
+        .tabs-container {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #0033a0;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-full);
+            padding: 4px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
         }
         
-        .chat-status {
-            font-size: 0.9rem;
-            padding: 4px 8px;
-            border-radius: 4px;
-            background: #f0f0f0;
-        }
-        
-        .message-input-area {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        
-        .message-input-area input {
+        .tab {
             flex: 1;
-            margin: 0;
-        }
-        
-        .message-input-area button {
-            width: auto;
-            padding: 12px 24px;
-        }
-        
-        .user-item {
-            padding: 8px 12px;
-            margin: 4px 0;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        .user-item:hover {
-            background: #e6f0ff;
-        }
-        
-        .user-item.selected {
-            background: #0033a0;
-            color: white;
-        }
-        
-        .pm-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            color: #0033a0;
+            padding: 12px 16px;
+            text-align: center;
+            border-radius: var(--radius-full);
             font-weight: 600;
-        }
-        
-        #pm-chat-box {
-            height: 300px;
-            overflow-y: auto;
-            border: 1px solid #eee;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 6px;
-            background: #fafafa;
-        }
-        
-        .admin-panel {
-            margin-top: 20px;
-            padding: 15px;
-            background: #fff3f0;
-            border-radius: 8px;
-            border-left: 3px solid #d52b1e;
-        }
-        
-        .admin-buttons {
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--text-secondary);
             display: flex;
-            gap: 10px;
-            margin: 10px 0;
-            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
         
-        .admin-buttons button {
-            flex: 1;
-            min-width: 120px;
-            padding: 8px;
-            font-size: 0.9rem;
+        .tab.active {
+            background: var(--accent-blue);
+            color: white;
+            box-shadow: var(--shadow-sm);
         }
         
-        .flag-badge {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            background: linear-gradient(45deg, #fff 33%, #0033a0 33%, #0033a0 66%, #d52b1e 66%);
-            border-radius: 3px;
-            margin-right: 5px;
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
         }
         
-        .z-symbol {
-            font-family: 'Impact', sans-serif;
-            color: #d52b1e;
-            transform: skewX(-10deg);
-            display: inline-block;
+        .tab-content.active {
+            display: block;
+        }
+        
+        .badge {
+            background: var(--accent-red);
+            color: white;
+            border-radius: var(--radius-full);
+            padding: 2px 8px;
+            font-size: 0.7rem;
+            margin-left: 5px;
+        }
+        
+        /* Мобильная навигация */
+        .mobile-nav {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            padding: 10px;
+            z-index: 1000;
+        }
+        
+        .mobile-nav .tabs-container {
+            margin-bottom: 0;
+            background: var(--bg-tertiary);
+        }
+        
+        @media (max-width: 768px) {
+            .desktop-tabs {
+                display: none;
+            }
+            
+            .mobile-nav {
+                display: block;
+            }
+            
+            .dashboard-container {
+                padding-bottom: 80px;
+            }
+            
+            .tab {
+                padding: 10px;
+                font-size: 0.8rem;
+            }
+            
+            .tab i {
+                font-size: 1.2rem;
+            }
         }
     </style>
 </head>
 <body>
     <div class="flag-stripe"></div>
-    <div class="dashboard-container">
-        <!-- Левая колонка: Инфо и настройки -->
-        <div class="sidebar fade-in">
-            <h2 style="display: flex; align-items: center;">
-                <span class="flag-badge"></span>
-                6<span class="z-symbol">В</span>месте
-            </h2>
-            <p style="margin: 10px 0; color: #666;">Привет, <strong id="current-username"></strong>!</p>
-            
-            <div class="user-list" id="user-list">
-                <h4>Участники класса:</h4>
-                <!-- Загружается динамически -->
+    
+    <!-- Мобильная навигация (снизу) -->
+    <div class="mobile-nav">
+        <div class="tabs-container">
+            <div class="tab active" data-tab="chat">
+                <span>💬</span>
+                <span>Чат</span>
             </div>
-            
-            <!-- Админ панель (видна только админам) -->
-            <div id="admin-panel" class="admin-panel" style="display: none;">
-                <h4 style="color: #d52b1e; margin-bottom: 10px;">⚡ Админ панель</h4>
-                
-                <div class="admin-buttons">
-                    <button id="close-chat" class="btn-primary btn-danger">Закрыть чат</button>
-                    <button id="open-chat" class="btn-primary">Открыть чат</button>
-                </div>
-                
-                <div style="margin-top: 15px;">
-                    <p style="font-size: 0.9rem; margin-bottom: 5px;">Одобрить пользователя:</p>
-                    <select id="user-select" style="margin-bottom: 10px;">
-                        <option value="">Выберите пользователя</option>
-                    </select>
-                    <button id="approve-user" class="btn-primary" style="width: 100%;">✅ Одобрить</button>
-                </div>
+            <div class="tab" data-tab="users">
+                <span>👥</span>
+                <span>Участники</span>
+                <span class="badge" id="pending-badge-mobile" style="display: none;">0</span>
             </div>
-            
-            <p style="font-size: 0.8rem; color: #999; margin-top: 20px; text-align: center;">
-                Сделано с ❤️ для 6 класса
-            </p>
+            <div class="tab" data-tab="pm">
+                <span>💌</span>
+                <span>Личка</span>
+                <span class="badge" id="pm-badge-mobile" style="display: none;">0</span>
+            </div>
+            <div class="tab" data-tab="profile">
+                <span>👤</span>
+                <span>Профиль</span>
+            </div>
         </div>
-        <div class="message-input-area">
-    <input type="text" id="message-input" placeholder="Введите сообщение..." disabled>
-    <input type="file" id="image-upload" accept="image/*" style="display: none;" disabled>
-    <button onclick="document.getElementById('image-upload').click()" class="btn-primary" style="width: auto; padding: 12px;" title="Загрузить изображение">📷</button>
-    <button id="send-message" class="btn-primary" disabled>Отправить</button>
-</div>
-        <!-- Центральная колонка: Основной чат -->
-        <div class="main-chat fade-in">
-            <div class="chat-header">
-                <h3>📢 Чат класса <span id="chat-status" class="chat-status">загружается...</span></h3>
-                <span class="timestamp">2026</span>
+    </div>
+    
+    <div class="dashboard-container">
+        <!-- Левая колонка (для десктопа) -->
+        <div class="sidebar desktop-tabs">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                <span class="flag-badge"></span>
+                <h2 style="margin: 0;">6<span class="z-effect">В</span>месте</h2>
             </div>
             
-            <div class="chat-container" id="chat-box">
-                <!-- Сообщения загружаются сюда -->
-                <div style="text-align: center; color: #999; padding: 20px;">Загрузка сообщений...</div>
+            <!-- Вкладки для десктопа -->
+            <div class="tabs-container" style="flex-direction: column; background: transparent; padding: 0; gap: 5px;">
+                <div class="tab active" data-tab="chat" style="justify-content: flex-start;">
+                    <span>💬</span> Общий чат
+                </div>
+                <div class="tab" data-tab="users" style="justify-content: flex-start;">
+                    <span>👥</span> Участники
+                    <span class="badge" id="pending-badge" style="margin-left: auto; display: none;">0</span>
+                </div>
+                <div class="tab" data-tab="pm" style="justify-content: flex-start;">
+                    <span>💌</span> Личные сообщения
+                    <span class="badge" id="pm-badge" style="margin-left: auto; display: none;">0</span>
+                </div>
+                <div class="tab" data-tab="profile" style="justify-content: flex-start;">
+                    <span>👤</span> Профиль
+                </div>
             </div>
             
-            <div class="message-input-area">
-                <input type="text" id="message-input" placeholder="Введите сообщение..." disabled>
-                <input type="file" id="image-upload" accept="image/*" style="display: none;" disabled>
-                <button onclick="document.getElementById('image-upload').click()" class="btn-primary" style="width: auto; padding: 12px;">📷</button>
-                <button id="send-message" class="btn-primary" disabled>Отправить</button>
+            <!-- Информация о пользователе -->
+            <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 40px; height: 40px; background: var(--accent-blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                        <span id="user-avatar">👤</span>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600;" id="current-username-display">Загрузка...</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);" id="user-role-display"></div>
+                    </div>
+                </div>
+                <button onclick="logout()" class="btn-secondary" style="margin-top: 10px; width: 100%;">🚪 Выйти</button>
             </div>
         </div>
         
-        <!-- Правая колонка: Личные сообщения -->
-        <div class="pm-section fade-in">
-            <div class="pm-header">
-                <span>💬 Личные сообщения</span>
-                <span id="pm-receiver" style="font-size: 0.9rem;">никто не выбран</span>
+        <!-- Центральная колонка (контент) -->
+        <div class="main-chat">
+            <!-- Вкладка ЧАТ -->
+            <div id="tab-chat" class="tab-content active">
+                <div class="chat-header">
+                    <h3>💬 Общий чат</h3>
+                    <span id="chat-status" class="chat-status">загружается...</span>
+                </div>
+                
+                <div class="chat-container" id="chat-box">
+                    <div style="text-align: center; color: var(--text-muted); padding: 20px;">Загрузка сообщений...</div>
+                </div>
+                
+                <div class="message-input-area">
+                    <input type="text" id="message-input" placeholder="Введите сообщение..." disabled>
+                    <input type="file" id="image-upload" accept="image/*" style="display: none;" disabled>
+                    <button onclick="document.getElementById('image-upload').click()" class="btn-primary" style="width: auto; padding: 12px 20px;" title="Загрузить изображение" disabled>📷</button>
+                    <button id="send-message" class="btn-primary" disabled>Отправить</button>
+                </div>
             </div>
             
-            <div id="pm-chat-box">
-                <!-- Личные сообщения загружаются сюда -->
-                <div style="text-align: center; color: #999; padding: 20px;">Выберите пользователя слева</div>
+            <!-- Вкладка УЧАСТНИКИ -->
+            <div id="tab-users" class="tab-content">
+                <div class="chat-header">
+                    <h3>👥 Участники класса</h3>
+                    <span id="users-count" class="chat-status">0</span>
+                </div>
+                
+                <!-- Админ панель (видна только админам) -->
+                <div id="admin-panel" style="display: none;">
+                    <div style="background: linear-gradient(135deg, rgba(213,43,30,0.1) 0%, rgba(0,0,0,0.3) 100%); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--accent-red);">
+                        <h4 style="color: var(--accent-red); margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                            ⚡ Админ панель
+                        </h4>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">Управление чатом:</label>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button id="close-chat" class="btn-primary btn-danger" style="flex: 1;">🔒 Закрыть чат</button>
+                                <button id="open-chat" class="btn-primary" style="flex: 1;">🔓 Открыть чат</button>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">Одобрить заявки:</label>
+                            <select id="user-select" style="margin-bottom: 10px; width: 100%;">
+                                <option value="">Выберите пользователя</option>
+                            </select>
+                            <button id="approve-user" class="btn-primary" style="width: 100%;">✅ Одобрить выбранного</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Список заявок (для админов) -->
+                <div id="pending-users-section" style="margin-bottom: 20px; display: none;">
+                    <h4 style="color: var(--accent-red); margin-bottom: 10px;">⏳ Ожидают одобрения</h4>
+                    <div id="pending-users-list" class="user-list" style="max-height: 150px;">
+                        <!-- Загружается динамически -->
+                    </div>
+                </div>
+                
+                <!-- Все участники -->
+                <h4 style="margin-bottom: 10px;">✅ Активные участники</h4>
+                <div id="approved-users-list" class="user-list" style="max-height: 300px;">
+                    <!-- Загружается динамически -->
+                </div>
             </div>
             
-            <div style="display: flex; gap: 5px;">
-                <input type="text" id="pm-input" placeholder="Личное сообщение..." style="flex: 1; margin: 0;">
-                <button id="pm-send" class="btn-primary" style="width: auto; padding: 12px;">➡️</button>
+            <!-- Вкладка ЛИЧНЫЕ СООБЩЕНИЯ -->
+            <div id="tab-pm" class="tab-content">
+                <div class="chat-header">
+                    <h3>💌 Личные сообщения</h3>
+                    <span id="pm-receiver" class="chat-status">никто не выбран</span>
+                </div>
+                
+                <!-- Список диалогов (слева) и чат (справа) для десктопа -->
+                <div style="display: flex; gap: 15px; height: 500px;">
+                    <!-- Список контактов -->
+                    <div style="width: 200px; background: var(--bg-tertiary); border-radius: var(--radius-lg); padding: 10px; overflow-y: auto;">
+                        <div style="font-weight: 600; padding: 10px; border-bottom: 1px solid var(--border-color); margin-bottom: 10px;">
+                            Диалоги
+                        </div>
+                        <div id="pm-contacts-list">
+                            <!-- Контакты загружаются сюда -->
+                            <div style="text-align: center; color: var(--text-muted); padding: 20px;">Загрузка...</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Область чата -->
+                    <div style="flex: 1; display: flex; flex-direction: column;">
+                        <div id="pm-chat-box" style="flex: 1; overflow-y: auto; padding: 15px; background: var(--bg-tertiary); border-radius: var(--radius-lg); margin-bottom: 10px;">
+                            <div style="text-align: center; color: var(--text-muted); padding: 20px;">Выберите собеседника</div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="pm-input" placeholder="Личное сообщение..." style="flex: 1;" disabled>
+                            <button id="pm-send" class="btn-primary" style="width: auto;" disabled>➡️</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Вкладка ПРОФИЛЬ -->
+            <div id="tab-profile" class="tab-content">
+                <div class="chat-header">
+                    <h3>👤 Мой профиль</h3>
+                </div>
+                
+                <div style="background: var(--bg-tertiary); border-radius: var(--radius-lg); padding: 30px; text-align: center;">
+                    <div style="width: 100px; height: 100px; background: var(--accent-blue); border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: white;">
+                        <span id="profile-avatar">👤</span>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <div style="font-size: 1.2rem; font-weight: 600; color: var(--text-primary);" id="profile-username">Загрузка...</div>
+                        <div style="font-size: 0.9rem; color: var(--text-muted);" id="profile-email">Загрузка...</div>
+                    </div>
+                    
+                    <div style="background: var(--bg-secondary); border-radius: var(--radius-md); padding: 15px; text-align: left; margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                            <span style="color: var(--text-muted);">Роль:</span>
+                            <span style="color: var(--text-primary); font-weight: 600;" id="profile-role">Загрузка...</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                            <span style="color: var(--text-muted);">Статус:</span>
+                            <span style="color: var(--text-primary); font-weight: 600;" id="profile-status">Загрузка...</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                            <span style="color: var(--text-muted);">Дата регистрации:</span>
+                            <span style="color: var(--text-primary);" id="profile-created">Загрузка...</span>
+                        </div>
+                    </div>
+                    
+                    <button onclick="logout()" class="btn-danger" style="width: 100%;">🚪 Выйти из аккаунта</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Правая колонка (для десктопа - быстрый просмотр) -->
+        <div class="pm-section" style="display: flex; flex-direction: column;">
+            <h4>📌 Быстрый доступ</h4>
+            
+            <div id="quick-stats" style="margin-bottom: 20px;">
+                <div style="background: var(--bg-tertiary); border-radius: var(--radius-md); padding: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Участников:</span>
+                        <span style="font-weight: 600;" id="stat-users">0</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Сообщений сегодня:</span>
+                        <span style="font-weight: 600;" id="stat-messages">0</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Онлайн:</span>
+                        <span style="font-weight: 600; color: #4caf50;" id="stat-online">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <h4>🎨 Оформление</h4>
+            <div style="background: var(--bg-tertiary); border-radius: var(--radius-md); padding: 15px; text-align: center; font-size: 0.9rem; color: var(--text-muted);">
+                <div style="margin-bottom: 10px;">Русский триколор</div>
+                <div style="display: flex; gap: 5px; justify-content: center;">
+                    <span style="width: 30px; height: 30px; background: white; border-radius: 4px;"></span>
+                    <span style="width: 30px; height: 30px; background: #0033a0; border-radius: 4px;"></span>
+                    <span style="width: 30px; height: 30px; background: #d52b1e; border-radius: 4px;"></span>
+                </div>
+            </div>
+            
+            <div style="margin-top: auto; text-align: center; padding: 20px 0; color: var(--text-muted); font-size: 0.8rem;">
+                © 2026 6Вместе<br>
+                Сделано для класса
             </div>
         </div>
     </div>
