@@ -1037,8 +1037,292 @@ async function logout() {
 // ИНИЦИАЛИЗАЦИЯ DASHBOARD
 // ============================================
 
+// ============================================
+// ИНИЦИАЛИЗАЦИЯ DASHBOARD - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
+// ============================================
+
+async function initDashboard() {
+    try {
+        // Получаем текущего пользователя из Supabase Auth
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError;
+        
+        // Если пользователь не авторизован - редирект на страницу входа
+        if (!user) {
+            window.location.href = 'index.html';
+            return;
+        }
+
+        // Получаем профиль пользователя из таблицы profiles
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+        if (profileError || !profile) {
+            console.error('Профиль не найден');
+            // Пробуем создать профиль, если его нет
+            const { error: insertError } = await supabase
+                .from('profiles')
+                .insert([{
+                    id: user.id,
+                    username: user.email?.split('@')[0] || 'Пользователь',
+                    role: 'user',
+                    approved: true
+                }]);
+            
+            if (insertError) {
+                console.error('Не удалось создать профиль:', insertError);
+                return;
+            }
+            
+            // Перезагружаем страницу, чтобы получить новый профиль
+            window.location.reload();
+            return;
+        }
+
+        // ПРОВЕРКА НА БАН - пользователь не должен войти, если забанен
+        if (profile.banned) {
+            document.body.innerHTML = `
+                <div class="container" style="text-align: center;">
+                    <div class="flag-stripe"></div>
+                    <h1 style="color: var(--accent-red); font-size: 4rem;">🚫</h1>
+                    <h1 style="color: var(--accent-red);">ДОСТУП ЗАПРЕЩЕН</h1>
+                    <p style="font-size: 1.2rem; margin: 20px 0;">Вы были забанены администратором.</p>
+                    ${profile.banned_at ? `
+                        <div style="background: var(--bg-tertiary); border-radius: var(--radius-lg); padding: 15px; margin: 20px 0;">
+                            <p>Дата бана: ${new Date(profile.banned_at).toLocaleString('ru-RU')}</p>
+                        </div>
+                    ` : ''}
+                    <div style="background: rgba(213, 43, 30, 0.1); border-radius: var(--radius-lg); padding: 20px; margin: 20px 0; border-left: 4px solid var(--accent-red);">
+                        <p style="color: var(--text-muted);">Если вы считаете, что это ошибка,<br>свяжитесь с администратором.</p>
+                    </div>
+                    <button onclick="logout()" class="btn-primary" style="width: auto; padding: 12px 30px; margin-top: 20px;">Выйти</button>
+                </div>
+            `;
+            return;
+        }
+
+        // Проверка одобрения пользователя (для не-админов)
+        if (!profile.approved && profile.role !== 'admin') {
+            document.body.innerHTML = `
+                <div class="container">
+                    <div class="flag-stripe"></div>
+                    <h1>⏳ Ожидайте одобрения</h1>
+                    <p>Ваша заявка еще не одобрена админом.</p>
+                    <p>Пожалуйста, подождите, пока администратор активирует ваш аккаунт.</p>
+                    <button onclick="logout()" class="btn-primary" style="margin-top: 20px;">Выйти</button>
+                </div>
+            `;
+            return;
+        }
+
+        // Сохраняем текущего пользователя в глобальную переменную
+        currentUser = profile;
+        
+        // Обновляем UI с именем пользователя
+        const usernameDisplay = document.getElementById('current-username-display');
+        if (usernameDisplay) usernameDisplay.textContent = profile.username || 'Пользователь';
+        
+        const userAvatar = document.getElementById('user-avatar');
+        if (userAvatar) userAvatar.textContent = profile.username ? profile.username[0].toUpperCase() : '👤';
+        
+        const userRoleDisplay = document.getElementById('user-role-display');
+        if (userRoleDisplay) {
+            userRoleDisplay.textContent = profile.role === 'admin' ? 'Администратор' : 'Участник';
+        }
+
+        // Инициализируем систему вкладок
+        initTabs();
+
+        // Загружаем настройки чата (открыт/закрыт)
+        await loadChatSettings();
+
+        // Загружаем сообщения из общего чата
+        await loadMessages();
+
+        // Загружаем список пользователей
+        await loadUsers();
+
+        // Загружаем контакты для личных сообщений
+        await loadPMContacts();
+
+        // Загружаем данные профиля
+        await loadProfile();
+
+        // Загружаем статистику
+        await updateStats();
+
+        // Обновляем бейджи (уведомления о новых заявках)
+        await updateBadges();
+
+        // Настраиваем Realtime подписки для мгновенных обновлений
+        setupRealtimeSubscriptions();
+
+        // Периодические обновления (каждые 30 секунд)
+        setInterval(updateStats, 30000);
+        setInterval(updateBadges, 10000);
+
+        // ============================================
+        // ОБРАБОТЧИКИ СОБЫТИЙ
+        // ============================================
+
+        // Отправка сообщения в общий чат
+        const sendBtn = document.getElementById('send-message');
+        if (sendBtn) {
+            sendBtn.addEventListener('click', sendMessage);
+        }
+
+        // Загрузка изображения
+        const imageUpload = document.getElementById('image-upload');
+        if (imageUpload) {
+            imageUpload.addEventListener('change', handleImageUpload);
+        }
+
+        // Кнопка загрузки изображения (камера)
+        const uploadBtn = document.querySelector('button[onclick*="image-upload"]');
+        if (uploadBtn) {
+            uploadBtn.disabled = false;
+        }
+
+        // Отправка личного сообщения
+        const pmSend = document.getElementById('pm-send');
+        if (pmSend) {
+            pmSend.addEventListener('click', sendPrivateMessage);
+        }
+
+        // Ввод сообщения по Enter
+        const messageInput = document.getElementById('message-input');
+        if (messageInput) {
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+        }
+
+        // Ввод ЛС по Enter
+        const pmInput = document.getElementById('pm-input');
+        if (pmInput) {
+            pmInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendPrivateMessage();
+                }
+            });
+        }
+
+        // ============================================
+        // АДМИНСКИЕ ФУНКЦИИ
+        // ============================================
+        
+        if (currentUser.role === 'admin') {
+            // Показываем админ-панель
+            const adminPanel = document.getElementById('admin-panel');
+            if (adminPanel) {
+                adminPanel.style.display = 'block';
+            }
+            
+            // Кнопки управления чатом (открыть/закрыть)
+            const closeChat = document.getElementById('close-chat');
+            if (closeChat) {
+                closeChat.addEventListener('click', () => toggleChat(false));
+            }
+            
+            const openChat = document.getElementById('open-chat');
+            if (openChat) {
+                openChat.addEventListener('click', () => toggleChat(true));
+            }
+            
+            // Кнопка одобрения пользователей
+            const approveUser = document.getElementById('approve-user');
+            if (approveUser) {
+                approveUser.addEventListener('click', approveSelectedUser);
+            }
+            
+            // Загружаем списки для бана пользователей
+            await loadBanUsers();
+    
+            // Кнопка бана пользователя
+            const banBtn = document.getElementById('ban-user');
+            if (banBtn) {
+                banBtn.addEventListener('click', banUser);
+            }
+            
+            // Кнопка разбана пользователя
+            const unbanBtn = document.getElementById('unban-user');
+            if (unbanBtn) {
+                unbanBtn.addEventListener('click', unbanUser);
+            }
+            
+            // Кнопка очистки сообщений пользователя
+            const clearUserBtn = document.getElementById('clear-user-messages');
+            if (clearUserBtn) {
+                clearUserBtn.addEventListener('click', clearUserMessages);
+            }
+            
+            // Кнопка полной очистки чата
+            const clearAllBtn = document.getElementById('clear-all-messages');
+            if (clearAllBtn) {
+                clearAllBtn.addEventListener('click', clearAllMessages);
+            }
+        }
+
+        // ============================================
+        // УВЕДОМЛЕНИЯ
+        // ============================================
+        
+        // Проверяем поддержку уведомлений
+        if ('Notification' in window && 'serviceWorker' in navigator) {
+            const notifBtn = document.getElementById('enable-notifications');
+            if (notifBtn) {
+                // Убираем предыдущие обработчики
+                const newBtn = notifBtn.cloneNode(true);
+                notifBtn.parentNode.replaceChild(newBtn, notifBtn);
+                
+                // Добавляем новый обработчик
+                newBtn.addEventListener('click', async () => {
+                    const success = await subscribeToNotifications();
+                    if (success) {
+                        updateNotificationButton();
+                    }
+                });
+                
+                // Обновляем состояние кнопки
+                updateNotificationButton();
+            }
+        }
+
+        console.log('✅ Инициализация завершена, пользователь:', currentUser.username);
+        
+    } catch (error) {
+        console.error('❌ Ошибка инициализации:', error);
+        // Показываем ошибку пользователю
+        const container = document.querySelector('.container');
+        if (container) {
+            container.innerHTML = `
+                <h1 style="color: var(--accent-red);">❌ Ошибка</h1>
+                <p>Произошла ошибка при загрузке: ${error.message}</p>
+                <button onclick="location.reload()" class="btn-primary">Обновить страницу</button>
+            `;
+        }
+    }
+}
+
+// ============================================
+// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ПРОВЕРКИ ИНИЦИАЛИЗАЦИИ
+// ============================================
+
+// Проверяем, загружена ли страница dashboard
 if (window.location.pathname.includes('dashboard.html') || window.location.pathname === '/') {
-    initDashboard();
+    // Ждем загрузки DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initDashboard);
+    } else {
+        initDashboard();
+    }
 }
 
         
