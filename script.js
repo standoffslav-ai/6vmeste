@@ -1054,7 +1054,18 @@ async function initDashboard() {
             const approveUser = document.getElementById('approve-user');
             if (approveUser) approveUser.addEventListener('click', approveSelectedUser);
         }
-
+        // ============================================
+// ДОБАВЬТЕ В ИНИЦИАЛИЗАЦИЮ (в конец функции initDashboard)
+// ============================================
+        if (currentUser.role === 'admin') {
+            await loadBanUsers();
+    
+    // Добавляем обработчики для новых кнопок
+            document.getElementById('ban-user')?.addEventListener('click', banUser);
+            document.getElementById('unban-user')?.addEventListener('click', unbanUser);
+            document.getElementById('clear-user-messages')?.addEventListener('click', clearUserMessages);
+            document.getElementById('clear-all-messages')?.addEventListener('click', clearAllMessages);
+        }
     } catch (error) {
         console.error('Ошибка инициализации:', error);
     }
@@ -1064,6 +1075,352 @@ async function initDashboard() {
 window.addEventListener('beforeunload', () => {
     window.blobUrls.forEach(url => URL.revokeObjectURL(url));
 });
+// ============================================
+// ФУНКЦИИ БАНА ПОЛЬЗОВАТЕЛЕЙ
+// ============================================
+
+// Загрузка списка пользователей для бана
+async function loadBanUsers() {
+    if (!currentUser || currentUser.role !== 'admin') return;
+    
+    try {
+        // Активные пользователи (не забаненные)
+        const { data: activeUsers } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('approved', true)
+            .eq('banned', false)
+            .neq('id', currentUser.id)
+            .order('username');
+        
+        const banSelect = document.getElementById('ban-user-select');
+        if (banSelect) {
+            banSelect.innerHTML = '<option value="">Выберите пользователя для бана</option>';
+            activeUsers?.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = `${user.username} (${user.role})`;
+                banSelect.appendChild(option);
+            });
+        }
+        
+        // Забаненные пользователи
+        const { data: bannedUsers } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('banned', true)
+            .order('username');
+        
+        const unbanSelect = document.getElementById('unban-user-select');
+        if (unbanSelect) {
+            unbanSelect.innerHTML = '<option value="">Выберите пользователя для разбана</option>';
+            bannedUsers?.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = `${user.username} (забанен)`;
+                unbanSelect.appendChild(option);
+            });
+        }
+        
+        // Для очистки сообщений
+        const clearSelect = document.getElementById('clear-user-select');
+        if (clearSelect) {
+            clearSelect.innerHTML = '<option value="">Выберите пользователя</option>';
+            
+            // Все пользователи (кроме текущего)
+            const { data: allUsers } = await supabase
+                .from('profiles')
+                .select('*')
+                .neq('id', currentUser.id)
+                .order('username');
+            
+            allUsers?.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = `${user.username} ${user.banned ? '(забанен)' : ''}`;
+                clearSelect.appendChild(option);
+            });
+        }
+        
+    } catch (error) {
+        console.error('Ошибка загрузки списка пользователей:', error);
+    }
+}
+
+// Забанить пользователя
+async function banUser() {
+    const userId = document.getElementById('ban-user-select')?.value;
+    const reason = document.getElementById('ban-reason')?.value;
+    
+    if (!userId) {
+        showNotification('❌ Выберите пользователя', 'error');
+        return;
+    }
+    
+    if (!confirm('Вы уверены, что хотите забанить этого пользователя?')) return;
+    
+    try {
+        // Обновляем профиль
+        await supabase
+            .from('profiles')
+            .update({ 
+                banned: true, 
+                banned_at: new Date().toISOString(),
+                banned_by: currentUser.id
+            })
+            .eq('id', userId);
+        
+        // Записываем в историю банов
+        await supabase
+            .from('banned_users')
+            .insert([{
+                user_id: userId,
+                banned_by: currentUser.id,
+                reason: reason || null,
+                banned_at: new Date().toISOString(),
+                active: true
+            }]);
+        
+        showNotification('✅ Пользователь забанен');
+        
+        // Обновляем списки
+        await loadBanUsers();
+        await loadUsers(); // Обновляем основной список
+        
+        // Очищаем поля
+        document.getElementById('ban-reason').value = '';
+        
+    } catch (error) {
+        console.error('Ошибка бана:', error);
+        showNotification('❌ Ошибка при бане', 'error');
+    }
+}
+
+// Разбанить пользователя
+async function unbanUser() {
+    const userId = document.getElementById('unban-user-select')?.value;
+    
+    if (!userId) {
+        showNotification('❌ Выберите пользователя', 'error');
+        return;
+    }
+    
+    if (!confirm('Разбанить этого пользователя?')) return;
+    
+    try {
+        // Обновляем профиль
+        await supabase
+            .from('profiles')
+            .update({ banned: false, banned_at: null, banned_by: null })
+            .eq('id', userId);
+        
+        // Обновляем историю банов
+        await supabase
+            .from('banned_users')
+            .update({ active: false, unbanned_at: new Date().toISOString() })
+            .eq('user_id', userId)
+            .eq('active', true);
+        
+        showNotification('✅ Пользователь разбанен');
+        
+        // Обновляем списки
+        await loadBanUsers();
+        await loadUsers();
+        
+    } catch (error) {
+        console.error('Ошибка разбана:', error);
+        showNotification('❌ Ошибка при разбане', 'error');
+    }
+}
+
+// ============================================
+// ФУНКЦИИ ОЧИСТКИ СООБЩЕНИЙ
+// ============================================
+
+// Очистить сообщения пользователя
+async function clearUserMessages() {
+    const userId = document.getElementById('clear-user-select')?.value;
+    
+    if (!userId) {
+        showNotification('❌ Выберите пользователя', 'error');
+        return;
+    }
+    
+    // Получаем имя пользователя для подтверждения
+    const { data: user } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', userId)
+        .single();
+    
+    if (!confirm(`⚠️ Удалить ВСЕ сообщения пользователя ${user?.username}? Это действие нельзя отменить!`)) return;
+    
+    try {
+        // Удаляем сообщения из общего чата
+        await supabase
+            .from('messages')
+            .delete()
+            .eq('user_id', userId);
+        
+        // Удаляем личные сообщения (обе стороны)
+        await supabase
+            .from('private_messages')
+            .delete()
+            .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
+        
+        showNotification(`✅ Все сообщения пользователя ${user?.username} удалены`);
+        
+        // Перезагружаем чат
+        await loadMessages();
+        
+    } catch (error) {
+        console.error('Ошибка очистки:', error);
+        showNotification('❌ Ошибка при очистке', 'error');
+    }
+}
+
+// Очистить весь чат
+async function clearAllMessages() {
+    if (!confirm('⚠️⚠️⚠️ ЭТО УДАЛИТ ВСЕ СООБЩЕНИЯ В ЧАТЕ!\n\nВы уверены? Это действие нельзя отменить!')) return;
+    
+    if (!confirm('Последнее подтверждение: УДАЛИТЬ ВСЕ СООБЩЕНИЯ?')) return;
+    
+    try {
+        showNotification('🔄 Очистка чата...');
+        
+        // Удаляем все сообщения из общего чата
+        await supabase
+            .from('messages')
+            .delete()
+            .neq('id', 0); // Удаляем всё
+        
+        showNotification('✅ Чат полностью очищен');
+        
+        // Перезагружаем чат
+        await loadMessages();
+        
+    } catch (error) {
+        console.error('Ошибка очистки чата:', error);
+        showNotification('❌ Ошибка при очистке', 'error');
+    }
+}
+
+// ============================================
+// ОБНОВЛЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ ПОЛЬЗОВАТЕЛЕЙ
+// ============================================
+
+// Добавьте в функцию loadUsers отображение забаненных
+async function loadUsers() {
+    try {
+        const { data: users, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .order('username');
+        
+        if (error) throw error;
+
+        const approvedList = document.getElementById('approved-users-list');
+        const pendingList = document.getElementById('pending-users-list');
+        
+        if (approvedList) approvedList.innerHTML = '<h4 style="margin-bottom: 10px;">✅ Активные участники</h4>';
+        if (pendingList) pendingList.innerHTML = '';
+        
+        let pendingCount = 0;
+
+        users.forEach(user => {
+            if (user.banned) {
+                // Забаненные пользователи
+                if (approvedList && currentUser?.role === 'admin') {
+                    const div = document.createElement('div');
+                    div.className = 'user-item';
+                    div.style.opacity = '0.5';
+                    div.style.background = 'rgba(213, 43, 30, 0.1)';
+                    div.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 32px; height: 32px; background: #666; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
+                                ${user.username ? user.username[0].toUpperCase() : '?'}
+                            </div>
+                            <div>
+                                <strong>${user.username}</strong>
+                                <span style="color: var(--accent-red); font-size: 0.8rem; margin-left: 5px;">🔨 ЗАБАНЕН</span>
+                            </div>
+                        </div>
+                    `;
+                    approvedList.appendChild(div);
+                }
+            } else if (user.approved) {
+                // Активные пользователи
+                if (approvedList) {
+                    const div = document.createElement('div');
+                    div.className = `user-item ${user.role === 'admin' ? 'admin' : ''}`;
+                    div.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 32px; height: 32px; background: ${user.role === 'admin' ? 'var(--accent-red)' : 'var(--accent-blue)'}; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
+                                ${user.username ? user.username[0].toUpperCase() : '?'}
+                            </div>
+                            <div>
+                                <strong>${user.username}</strong>
+                                ${user.role === 'admin' ? ' 👑' : ''}
+                            </div>
+                        </div>
+                    `;
+                    approvedList.appendChild(div);
+                }
+            } else {
+                pendingCount++;
+                if (pendingList && currentUser?.role === 'admin') {
+                    const div = document.createElement('div');
+                    div.className = 'user-item';
+                    div.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 32px; height: 32px; background: var(--text-muted); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
+                                ${user.username ? user.username[0].toUpperCase() : '?'}
+                            </div>
+                            <div>
+                                <strong>${user.username}</strong>
+                                <span style="color: var(--accent-red); font-size: 0.8rem; margin-left: 5px;">(ожидает)</span>
+                            </div>
+                        </div>
+                    `;
+                    pendingList.appendChild(div);
+                }
+            }
+        });
+
+        const pendingSection = document.getElementById('pending-users-section');
+        if (pendingSection) {
+            pendingSection.style.display = (pendingCount > 0 && currentUser?.role === 'admin') ? 'block' : 'none';
+        }
+
+        const usersCount = document.getElementById('users-count');
+        if (usersCount) {
+            usersCount.textContent = users.filter(u => u.approved && !u.banned).length;
+        }
+
+    } catch (error) {
+        console.error('Ошибка загрузки пользователей:', error);
+    }
+}
+
+// ============================================
+// ОБНОВЛЕНИЕ ПРОВЕРКИ ПРИ ВХОДЕ
+// ============================================
+
+// Добавьте эту проверку в функцию initDashboard после получения профиля
+if (profile.banned) {
+    document.body.innerHTML = `
+        <div class="container">
+            <h1 style="color: var(--accent-red);">🚫 ДОСТУП ЗАПРЕЩЕН</h1>
+            <p>Вы были забанены администратором.</p>
+            ${profile.banned_at ? `<p>Дата: ${new Date(profile.banned_at).toLocaleDateString()}</p>` : ''}
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Если вы считаете, что это ошибка, свяжитесь с администратором.</p>
+            <a href="index.html" class="btn-primary">На главную</a>
+        </div>
+    `;
+    return;
+}
+
+
 
 
 
