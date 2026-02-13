@@ -1,5 +1,6 @@
 // Инициализация Supabase
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Инициализация Supabase - БЕЗ const, let или var!
+supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let currentChatSettings = { is_open: true };
 let selectedPMUser = null;
@@ -678,3 +679,4 @@ async function logout() {
     window.location.href = 'index.html';
 
 }
+
