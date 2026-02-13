@@ -586,7 +586,7 @@ async function uploadImage(file) {
         {
             name: 'ImgBB',
             url: 'https://api.imgbb.com/1/upload',
-            params: { key: '6b8a6b7b7b7b7b7b7b7b7b7b7b7b7b7b' }, // Публичный тестовый ключ
+            params: { key: '6f2da13598184fa66d3d748ae6cbfec8' }, // Публичный тестовый ключ
             process: (data) => data.data.url
         },
         {
@@ -599,7 +599,6 @@ async function uploadImage(file) {
 
     for (const api of apis) {
         try {
-            showNotification(`🔄 Пробуем ${api.name}...`);
             
             const formData = new FormData();
             formData.append('source', file);
@@ -1089,6 +1088,7 @@ async function initDashboard() {
 window.addEventListener('beforeunload', () => {
     window.blobUrls.forEach(url => URL.revokeObjectURL(url));
 });
+
 
 
 
