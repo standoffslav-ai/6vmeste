@@ -1144,21 +1144,29 @@ async function initDashboard() {
             if (approveUser) approveUser.addEventListener('click', approveSelectedUser);
         }
         // ============================================
-// ДОБАВЬТЕ В ИНИЦИАЛИЗАЦИЮ (в конец функции initDashboard)
-// ============================================
+        // ДОБАВЬТЕ В ИНИЦИАЛИЗАЦИЮ (в конец функции initDashboard)
+        // ============================================
         if (currentUser.role === 'admin') {
             await loadBanUsers();
     
-    // Добавляем обработчики для новых кнопок
-            document.getElementById('ban-user')?.addEventListener('click', banUser);
-            document.getElementById('unban-user')?.addEventListener('click', unbanUser);
-            document.getElementById('clear-user-messages')?.addEventListener('click', clearUserMessages);
-            document.getElementById('clear-all-messages')?.addEventListener('click', clearAllMessages);
+            // Добавляем обработчики для новых кнопок
+            const banBtn = document.getElementById('ban-user');
+            if (banBtn) banBtn.addEventListener('click', banUser);
+            
+            const unbanBtn = document.getElementById('unban-user');
+            if (unbanBtn) unbanBtn.addEventListener('click', unbanUser);
+            
+            const clearUserBtn = document.getElementById('clear-user-messages');
+            if (clearUserBtn) clearUserBtn.addEventListener('click', clearUserMessages);
+            
+            const clearAllBtn = document.getElementById('clear-all-messages');
+            if (clearAllBtn) clearAllBtn.addEventListener('click', clearAllMessages);
         }
+        
     } catch (error) {
         console.error('Ошибка инициализации:', error);
     }
-
+}
 // Очистка при выходе
 window.addEventListener('beforeunload', () => {
     window.blobUrls.forEach(url => URL.revokeObjectURL(url));
@@ -1757,6 +1765,7 @@ async function updateNotificationButton() {
         btn.disabled = false;
     }
 }
+
 
 
 
