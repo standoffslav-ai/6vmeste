@@ -1041,132 +1041,7 @@ if (window.location.pathname.includes('dashboard.html') || window.location.pathn
     initDashboard();
 }
 
-async function initDashboard() {
-    try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError) throw userError;
         
-        if (!user) {
-            window.location.href = 'index.html';
-            return;
-        }
-
-        const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-
-        if (profileError || !profile) {
-            console.error('Профиль не найден');
-            return;
-        }
-
-        currentUser = profile;
-        
-        const usernameDisplay = document.getElementById('current-username-display');
-        if (usernameDisplay) usernameDisplay.textContent = profile.username || 'Пользователь';
-        
-        const userAvatar = document.getElementById('user-avatar');
-        if (userAvatar) userAvatar.textContent = profile.username ? profile.username[0].toUpperCase() : '👤';
-        
-        const userRoleDisplay = document.getElementById('user-role-display');
-        if (userRoleDisplay) {
-            userRoleDisplay.textContent = profile.role === 'admin' ? 'Администратор' : 'Участник';
-        }
-
-        if (!profile.approved) {
-            document.body.innerHTML = `
-                <div class="container">
-                    <h1>⏳ Ожидайте одобрения</h1>
-                    <p>Ваша заявка еще не одобрена админом.</p>
-                    <p>Пожалуйста, подождите, пока администратор активирует ваш аккаунт.</p>
-                    <a href="index.html" class="btn-primary">На главную</a>
-                </div>`;
-            return;
-        }
-
-        initTabs();
-        await loadChatSettings();
-        await loadMessages();
-        await loadUsers();
-        await loadPMContacts();
-        await loadProfile();
-        await updateStats();
-        await updateBadges();
-
-        setupRealtimeSubscriptions();
-
-        setInterval(updateStats, 30000);
-        setInterval(updateBadges, 10000);
-        // ============================================
-// ОБНОВЛЕНИЕ ПРОВЕРКИ ПРИ ВХОДЕ
-// ============================================
-
-// Добавьте эту проверку в функцию initDashboard после получения профиля
-        if (profile.banned) {
-            document.body.innerHTML = `
-                <div class="container">
-                    <h1 style="color: var(--accent-red);">🚫 ДОСТУП ЗАПРЕЩЕН</h1>
-                    <p>Вы были забанены администратором.</p>
-                    ${profile.banned_at ? `<p>Дата: ${new Date(profile.banned_at).toLocaleDateString()}</p>` : ''}
-                    <p style="color: var(--text-muted); font-size: 0.9rem;">Если вы считаете, что это ошибка, свяжитесь с администратором.</p>
-                    <a href="index.html" class="btn-primary">На главную</a>
-                </div>
-            `;
-    return;
-}
-        const sendBtn = document.getElementById('send-message');
-        if (sendBtn) sendBtn.addEventListener('click', sendMessage);
-
-        const imageUpload = document.getElementById('image-upload');
-        if (imageUpload) imageUpload.addEventListener('change', handleImageUpload);
-
-        const pmSend = document.getElementById('pm-send');
-        if (pmSend) pmSend.addEventListener('click', sendPrivateMessage);
-        if (checkNotificationSupport()) {
-        // Проверяем статус уведомлений
-        if (Notification.permission === 'granted') {
-            subscribeToNotifications();
-        }
-
-        if (currentUser.role === 'admin') {
-            const adminPanel = document.getElementById('admin-panel');
-            if (adminPanel) adminPanel.style.display = 'block';
-            
-            const closeChat = document.getElementById('close-chat');
-            const openChat = document.getElementById('open-chat');
-            
-            if (closeChat) closeChat.addEventListener('click', () => toggleChat(false));
-            if (openChat) openChat.addEventListener('click', () => toggleChat(true));
-            
-            const approveUser = document.getElementById('approve-user');
-            if (approveUser) approveUser.addEventListener('click', approveSelectedUser);
-        }
-        // ============================================
-        // ДОБАВЬТЕ В ИНИЦИАЛИЗАЦИЮ (в конец функции initDashboard)
-        // ============================================
-        if (currentUser.role === 'admin') {
-            await loadBanUsers();
-    
-            // Добавляем обработчики для новых кнопок
-            const banBtn = document.getElementById('ban-user');
-            if (banBtn) banBtn.addEventListener('click', banUser);
-            
-            const unbanBtn = document.getElementById('unban-user');
-            if (unbanBtn) unbanBtn.addEventListener('click', unbanUser);
-            
-            const clearUserBtn = document.getElementById('clear-user-messages');
-            if (clearUserBtn) clearUserBtn.addEventListener('click', clearUserMessages);
-            
-            const clearAllBtn = document.getElementById('clear-all-messages');
-            if (clearAllBtn) clearAllBtn.addEventListener('click', clearAllMessages);
-        }
-        
-    } catch (error) {
-        console.error('Ошибка инициализации:', error);
-    }
-}
 // Очистка при выходе
 window.addEventListener('beforeunload', () => {
     window.blobUrls.forEach(url => URL.revokeObjectURL(url));
@@ -1765,6 +1640,7 @@ async function updateNotificationButton() {
         btn.disabled = false;
     }
 }
+
 
 
 
