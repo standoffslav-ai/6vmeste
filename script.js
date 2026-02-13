@@ -623,6 +623,7 @@ async function uploadImage(file) {
     }
 }
 
+// Исправленная функция загрузки изображения
 async function handleImageUpload(e) {
     if (!currentChatSettings.is_open && currentUser?.role !== 'admin') {
         showNotification('❌ Чат закрыт администратором', 'error');
@@ -632,47 +633,44 @@ async function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-        showNotification('❌ Файл слишком большой (макс 5MB)', 'error');
+    // Проверка размера (макс 2MB для надежности)
+    if (file.size > 2 * 1024 * 1024) {
+        showNotification('❌ Файл слишком большой (макс 2MB)', 'error');
         return;
     }
 
+    // Проверка типа файла
     if (!file.type.startsWith('image/')) {
         showNotification('❌ Можно загружать только изображения', 'error');
         return;
     }
 
+    // Создаем временный URL для предпросмотра
+    const previewUrl = URL.createObjectURL(file);
+    
+    // Показываем предпросмотр
+    const tempId = 'temp-' + Date.now();
+    const tempMessage = {
+        id: tempId,
+        username: currentUser.username,
+        content: '🖼️ Загрузка...',
+        image_url: previewUrl,
+        created_at: new Date().toISOString(),
+        role: currentUser.role
+    };
+    
+    addMessageToChat(tempMessage);
+
     try {
-        const previewUrl = URL.createObjectURL(file);
-        window.blobUrls.add(previewUrl);
+        // Загружаем на сервер
+        const imageUrl = await uploadImage(file);
         
-        const tempId = 'temp-' + Date.now();
-        const tempMessage = {
-            id: tempId,
-            username: currentUser.username,
-            content: '🖼️ Загрузка...',
-            image_url: previewUrl,
-            created_at: new Date().toISOString(),
-            role: currentUser.role,
-            user_id: currentUser.id
-        };
+        // Удаляем временное сообщение
+        const tempElement = document.getElementById(`msg-${tempId}`);
+        if (tempElement) tempElement.remove();
         
-        addMessageToChat(tempMessage);
-        
-        let imageUrl;
-        try {
-            imageUrl = await uploadImage(file);
-        } catch (uploadError) {
-            console.warn('Не удалось загрузить на сервер, оставляем локальное изображение');
-            imageUrl = previewUrl;
-        }
-        
-        const tempMsgElement = document.getElementById(`msg-${tempId}`);
-        if (tempMsgElement) {
-            tempMsgElement.remove();
-        }
-        
-        const { error } = await supabase
+        // Отправляем постоянное сообщение
+        await supabase
             .from('messages')
             .insert([{
                 user_id: currentUser.id,
@@ -682,16 +680,21 @@ async function handleImageUpload(e) {
                 role: currentUser.role
             }]);
         
-        if (error) throw error;
-        
         showNotification('✅ Изображение отправлено!');
         
     } catch (error) {
-        console.error('Ошибка:', error);
-        showNotification('❌ Не удалось отправить изображение', 'error');
+        console.error('Ошибка загрузки:', error);
+        showNotification('❌ Ошибка загрузки', 'error');
+        
+        // В случае ошибки тоже удаляем временное сообщение
+        const tempElement = document.getElementById(`msg-${tempId}`);
+        if (tempElement) tempElement.remove();
+    } finally {
+        // ОЧЕНЬ ВАЖНО: освобождаем временный URL
+        URL.revokeObjectURL(previewUrl);
+        // Очищаем input
+        e.target.value = '';
     }
-
-    e.target.value = '';
 }
 
 // ============================================
@@ -1056,4 +1059,5 @@ async function initDashboard() {
 window.addEventListener('beforeunload', () => {
     window.blobUrls.forEach(url => URL.revokeObjectURL(url));
 });
+
 
