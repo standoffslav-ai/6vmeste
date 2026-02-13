@@ -299,6 +299,20 @@ async function loadProfile() {
 // ============================================
 // НАСТРОЙКИ ЧАТА
 // ============================================
+async function createDefaultChatSettings() {
+    try {
+        const { error } = await supabase
+            .from('chat_settings')
+            .insert([{ id: 1, is_open: true }]);
+        
+        if (error) throw error;
+        
+        currentChatSettings = { id: 1, is_open: true };
+        
+    } catch (error) {
+        console.error('Ошибка создания настроек:', error);
+    }
+}
 
 async function loadChatSettings() {
     try {
@@ -306,16 +320,24 @@ async function loadChatSettings() {
             .from('chat_settings')
             .select('*')
             .eq('id', 1)
-            .single();
+            .maybeSingle(); // Используем maybeSingle вместо single
 
-        if (error) throw error;
+        if (error) {
+            console.error('Ошибка загрузки настроек:', error);
+            return;
+        }
         
         if (data) {
             currentChatSettings = data;
-            updateChatUI();
+        } else {
+            // Если настроек нет, создаем
+            await createDefaultChatSettings();
         }
+        
+        updateChatUI();
+        
     } catch (error) {
-        console.error('Ошибка загрузки настроек:', error);
+        console.error('Ошибка:', error);
     }
 }
 
@@ -328,13 +350,16 @@ function updateChatUI() {
 
     if (!chatInput || !sendBtn) return;
 
-    if (currentChatSettings.is_open || currentUser?.role === 'admin') {
+    const isOpen = currentChatSettings?.is_open ?? true;
+    const isAdmin = currentUser?.role === 'admin';
+
+    if (isOpen || isAdmin) {
         chatInput.disabled = false;
         sendBtn.disabled = false;
         if (uploadBtn) uploadBtn.disabled = false;
         if (uploadBtn2) uploadBtn2.disabled = false;
         if (statusSpan) {
-            statusSpan.textContent = 'Чат открыт';
+            statusSpan.textContent = isOpen ? '🔓 Чат открыт' : '🔓 Чат открыт для админов';
             statusSpan.className = 'chat-status open';
         }
     } else {
@@ -343,26 +368,42 @@ function updateChatUI() {
         if (uploadBtn) uploadBtn.disabled = true;
         if (uploadBtn2) uploadBtn2.disabled = true;
         if (statusSpan) {
-            statusSpan.textContent = 'Чат закрыт';
+            statusSpan.textContent = '🔒 Чат закрыт';
             statusSpan.className = 'chat-status closed';
         }
     }
 }
 
 async function toggleChat(openState) {
-    if (!currentUser) return;
+    if (!currentUser || currentUser.role !== 'admin') {
+        showNotification('❌ Только админ может управлять чатом', 'error');
+        return;
+    }
     
     try {
-        await supabase
+        const { error } = await supabase
             .from('chat_settings')
-            .update({ 
+            .upsert({ 
+                id: 1,
                 is_open: openState, 
                 updated_by: currentUser.id, 
-                updated_at: new Date() 
-            })
-            .eq('id', 1);
+                updated_at: new Date().toISOString() 
+            });
+
+        if (error) {
+            console.error('Ошибка при обновлении:', error);
+            showNotification('❌ Ошибка: ' + error.message, 'error');
+            return;
+        }
+        
+        currentChatSettings.is_open = openState;
+        updateChatUI();
+        
+        showNotification(openState ? '🔓 Чат открыт' : '🔒 Чат закрыт');
+        
     } catch (error) {
         console.error('Ошибка переключения чата:', error);
+        showNotification('❌ Ошибка при закрытии чата', 'error');
     }
 }
 
@@ -447,9 +488,10 @@ async function sendMessage() {
         if (error) throw error;
 
         input.value = '';
+        
     } catch (error) {
         console.error('Ошибка отправки:', error);
-        showNotification('❌ Ошибка отправки', 'error');
+        showNotification('❌ Ошибка отправки: ' + error.message, 'error');
     }
 }
 
@@ -1417,6 +1459,7 @@ async function loadUsers() {
         console.error('Ошибка загрузки пользователей:', error);
     }
 }
+
 
 
 
