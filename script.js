@@ -580,60 +580,50 @@ async function loadPrivateMessages(otherUserId) {
 // ============================================
 
 // Универсальная функция загрузки с несколькими API
+// Загрузка изображений через ImgBB с вашим ключом
 async function uploadImage(file) {
-    // Пробуем разные API по очереди
-    const apis = [
-        {
-            name: 'ImgBB',
-            url: 'https://api.imgbb.com/1/upload',
-            params: { key: '6f2da13598184fa66d3d748ae6cbfec8' }, // Публичный тестовый ключ
-            process: (data) => data.data.url
-        },
-        {
-            name: 'FreeImage.Host',
-            url: 'https://freeimage.host/api/1/upload',
-            params: { key: '6d207e02198a847aa98d0a2a901485a5' }, // Публичный ключ
-            process: (data) => data.image.url
+    try {
+        showNotification('🔄 Загрузка изображения...');
+        
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        // ВАШ КЛЮЧ API
+        const API_KEY = '6f2da13598184fa66d3d748ae6cbfec8';
+        
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${API_KEY}`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Ответ ImgBB:', errorText);
+            throw new Error(`Ошибка HTTP: ${response.status}`);
         }
-    ];
 
-    for (const api of apis) {
-        try {
-            
-            const formData = new FormData();
-            formData.append('source', file);
-            formData.append('action', 'upload');
-            
-            // Добавляем параметры API
-            Object.entries(api.params).forEach(([key, value]) => {
-                formData.append(key, value);
-            });
-
-            const response = await fetch(api.url, {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) {
-                console.log(`${api.name} ответил статусом ${response.status}`);
-                continue; // Пробуем следующий API
-            }
-
-            const data = await response.json();
-            
-            if (data && (data.data?.url || data.image?.url)) {
-                showNotification(`✅ Загружено через ${api.name}`);
-                return api.process(data);
-            }
-        } catch (error) {
-            console.log(`${api.name} не сработал:`, error.message);
-            continue; // Пробуем следующий
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ Изображение загружено!');
+            // Возвращаем прямую ссылку на изображение
+            return data.data.url;
+        } else {
+            throw new Error(data.error?.message || 'Неизвестная ошибка');
         }
+        
+    } catch (error) {
+        console.error('Ошибка загрузки в ImgBB:', error);
+        showNotification('❌ Ошибка загрузки: ' + error.message, 'error');
+        
+        // Если ImgBB не работает, пробуем локальный просмотр
+        return URL.createObjectURL(file);
     }
 }
 
 // Исправленная функция загрузки изображения
 // Исправленная функция обработки загрузки
+// Обработка загрузки изображения
 async function handleImageUpload(e) {
     if (!currentChatSettings.is_open && currentUser?.role !== 'admin') {
         showNotification('❌ Чат закрыт администратором', 'error');
@@ -643,13 +633,13 @@ async function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Проверка размера (увеличим до 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-        showNotification('❌ Файл слишком большой (макс 5MB)', 'error');
+    // Проверка размера (ImgBB принимает до 32MB, оставим 10MB для надежности)
+    if (file.size > 10 * 1024 * 1024) {
+        showNotification('❌ Файл слишком большой (макс 10MB)', 'error');
         return;
     }
 
-    // Проверка типа
+    // Проверка типа файла
     if (!file.type.startsWith('image/')) {
         showNotification('❌ Можно загружать только изображения', 'error');
         return;
@@ -667,57 +657,43 @@ async function handleImageUpload(e) {
             content: '🖼️ Загрузка...',
             image_url: previewUrl,
             created_at: new Date().toISOString(),
-            role: currentUser.role,
-            user_id: currentUser.id
+            role: currentUser.role
         };
         
         addMessageToChat(tempMessage);
 
-        // Пытаемся загрузить на сервер
-        let imageUrl;
-        try {
-            imageUrl = await uploadImage(file);
-        } catch (uploadError) {
-            console.warn('Не удалось загрузить на сервер:', uploadError);
-            // Если не получилось, оставляем локальный URL
-            imageUrl = previewUrl;
-        }
-
+        // Загружаем на ImgBB
+        const imageUrl = await uploadImage(file);
+        
         // Удаляем временное сообщение
         const tempElement = document.getElementById(`msg-${tempId}`);
         if (tempElement) {
             tempElement.remove();
         }
 
-        // Если удалось загрузить на сервер (не локальный URL)
-        if (imageUrl && !imageUrl.startsWith('blob:')) {
-            // Отправляем постоянное сообщение
-            await supabase
-                .from('messages')
-                .insert([{
-                    user_id: currentUser.id,
-                    username: currentUser.username,
-                    content: '📷 [Изображение]',
-                    image_url: imageUrl,
-                    role: currentUser.role
-                }]);
-            
-            showNotification('✅ Изображение отправлено!');
-        } else {
-            // Если только локально, показываем предупреждение
-            showNotification('⚠️ Изображение видно только вам', 'warning');
-        }
-
+        // Отправляем постоянное сообщение
+        await supabase
+            .from('messages')
+            .insert([{
+                user_id: currentUser.id,
+                username: currentUser.username,
+                content: '📷 [Изображение]',
+                image_url: imageUrl,
+                role: currentUser.role
+            }]);
+        
+        showNotification('✅ Изображение отправлено!');
+        
     } catch (error) {
         console.error('Ошибка:', error);
         showNotification('❌ Не удалось загрузить изображение', 'error');
         
-        // Удаляем временное сообщение в случае ошибки
+        // Удаляем временное сообщение
         const tempElement = document.getElementById(`msg-${tempId}`);
         if (tempElement) tempElement.remove();
         
     } finally {
-        // ВАЖНО: освобождаем временный URL через небольшую задержку
+        // Очищаем временный URL
         setTimeout(() => {
             URL.revokeObjectURL(previewUrl);
         }, 1000);
@@ -1088,6 +1064,7 @@ async function initDashboard() {
 window.addEventListener('beforeunload', () => {
     window.blobUrls.forEach(url => URL.revokeObjectURL(url));
 });
+
 
 
 
