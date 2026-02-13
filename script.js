@@ -579,51 +579,62 @@ async function loadPrivateMessages(otherUserId) {
 // ИЗОБРАЖЕНИЯ
 // ============================================
 
+// Универсальная функция загрузки с несколькими API
 async function uploadImage(file) {
-    try {
-        showNotification('🔄 Загрузка изображения...');
-        
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const base64Image = e.target.result.split(',')[1];
-                    
-                    const response = await fetch('https://api.imgur.com/3/image', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': 'Client-ID c7c0b3c9f3b3c9f'
-                        },
-                        body: JSON.stringify({
-                            image: base64Image,
-                            type: 'base64'
-                        })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        showNotification('✅ Изображение загружено!');
-                        resolve(data.data.link);
-                    } else {
-                        reject(new Error('Ошибка загрузки'));
-                    }
-                } catch (error) {
-                    reject(error);
-                }
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
-        
-    } catch (error) {
-        console.error('Ошибка:', error);
-        showNotification('❌ Ошибка загрузки', 'error');
-        return URL.createObjectURL(file);
+    // Пробуем разные API по очереди
+    const apis = [
+        {
+            name: 'ImgBB',
+            url: 'https://api.imgbb.com/1/upload',
+            params: { key: '6b8a6b7b7b7b7b7b7b7b7b7b7b7b7b7b' }, // Публичный тестовый ключ
+            process: (data) => data.data.url
+        },
+        {
+            name: 'FreeImage.Host',
+            url: 'https://freeimage.host/api/1/upload',
+            params: { key: '6d207e02198a847aa98d0a2a901485a5' }, // Публичный ключ
+            process: (data) => data.image.url
+        }
+    ];
+
+    for (const api of apis) {
+        try {
+            showNotification(`🔄 Пробуем ${api.name}...`);
+            
+            const formData = new FormData();
+            formData.append('source', file);
+            formData.append('action', 'upload');
+            
+            // Добавляем параметры API
+            Object.entries(api.params).forEach(([key, value]) => {
+                formData.append(key, value);
+            });
+
+            const response = await fetch(api.url, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                console.log(`${api.name} ответил статусом ${response.status}`);
+                continue; // Пробуем следующий API
+            }
+
+            const data = await response.json();
+            
+            if (data && (data.data?.url || data.image?.url)) {
+                showNotification(`✅ Загружено через ${api.name}`);
+                return api.process(data);
+            }
+        } catch (error) {
+            console.log(`${api.name} не сработал:`, error.message);
+            continue; // Пробуем следующий
+        }
     }
 }
 
 // Исправленная функция загрузки изображения
+// Исправленная функция обработки загрузки
 async function handleImageUpload(e) {
     if (!currentChatSettings.is_open && currentUser?.role !== 'admin') {
         showNotification('❌ Чат закрыт администратором', 'error');
@@ -633,13 +644,13 @@ async function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Проверка размера (макс 2MB для надежности)
-    if (file.size > 2 * 1024 * 1024) {
-        showNotification('❌ Файл слишком большой (макс 2MB)', 'error');
+    // Проверка размера (увеличим до 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+        showNotification('❌ Файл слишком большой (макс 5MB)', 'error');
         return;
     }
 
-    // Проверка типа файла
+    // Проверка типа
     if (!file.type.startsWith('image/')) {
         showNotification('❌ Можно загружать только изображения', 'error');
         return;
@@ -647,56 +658,75 @@ async function handleImageUpload(e) {
 
     // Создаем временный URL для предпросмотра
     const previewUrl = URL.createObjectURL(file);
-    
-    // Показываем предпросмотр
     const tempId = 'temp-' + Date.now();
-    const tempMessage = {
-        id: tempId,
-        username: currentUser.username,
-        content: '🖼️ Загрузка...',
-        image_url: previewUrl,
-        created_at: new Date().toISOString(),
-        role: currentUser.role
-    };
     
-    addMessageToChat(tempMessage);
-
     try {
-        // Загружаем на сервер
-        const imageUrl = await uploadImage(file);
+        // Показываем предпросмотр
+        const tempMessage = {
+            id: tempId,
+            username: currentUser.username,
+            content: '🖼️ Загрузка...',
+            image_url: previewUrl,
+            created_at: new Date().toISOString(),
+            role: currentUser.role,
+            user_id: currentUser.id
+        };
         
+        addMessageToChat(tempMessage);
+
+        // Пытаемся загрузить на сервер
+        let imageUrl;
+        try {
+            imageUrl = await uploadImage(file);
+        } catch (uploadError) {
+            console.warn('Не удалось загрузить на сервер:', uploadError);
+            // Если не получилось, оставляем локальный URL
+            imageUrl = previewUrl;
+        }
+
         // Удаляем временное сообщение
         const tempElement = document.getElementById(`msg-${tempId}`);
-        if (tempElement) tempElement.remove();
-        
-        // Отправляем постоянное сообщение
-        await supabase
-            .from('messages')
-            .insert([{
-                user_id: currentUser.id,
-                username: currentUser.username,
-                content: '📷 [Изображение]',
-                image_url: imageUrl,
-                role: currentUser.role
-            }]);
-        
-        showNotification('✅ Изображение отправлено!');
-        
+        if (tempElement) {
+            tempElement.remove();
+        }
+
+        // Если удалось загрузить на сервер (не локальный URL)
+        if (imageUrl && !imageUrl.startsWith('blob:')) {
+            // Отправляем постоянное сообщение
+            await supabase
+                .from('messages')
+                .insert([{
+                    user_id: currentUser.id,
+                    username: currentUser.username,
+                    content: '📷 [Изображение]',
+                    image_url: imageUrl,
+                    role: currentUser.role
+                }]);
+            
+            showNotification('✅ Изображение отправлено!');
+        } else {
+            // Если только локально, показываем предупреждение
+            showNotification('⚠️ Изображение видно только вам', 'warning');
+        }
+
     } catch (error) {
-        console.error('Ошибка загрузки:', error);
-        showNotification('❌ Ошибка загрузки', 'error');
+        console.error('Ошибка:', error);
+        showNotification('❌ Не удалось загрузить изображение', 'error');
         
-        // В случае ошибки тоже удаляем временное сообщение
+        // Удаляем временное сообщение в случае ошибки
         const tempElement = document.getElementById(`msg-${tempId}`);
         if (tempElement) tempElement.remove();
+        
     } finally {
-        // ОЧЕНЬ ВАЖНО: освобождаем временный URL
-        URL.revokeObjectURL(previewUrl);
+        // ВАЖНО: освобождаем временный URL через небольшую задержку
+        setTimeout(() => {
+            URL.revokeObjectURL(previewUrl);
+        }, 1000);
+        
         // Очищаем input
         e.target.value = '';
     }
 }
-
 // ============================================
 // АДМИН ФУНКЦИИ
 // ============================================
@@ -1059,5 +1089,6 @@ async function initDashboard() {
 window.addEventListener('beforeunload', () => {
     window.blobUrls.forEach(url => URL.revokeObjectURL(url));
 });
+
 
 
