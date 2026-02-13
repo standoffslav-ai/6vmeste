@@ -1031,7 +1031,23 @@ async function initDashboard() {
 
         setInterval(updateStats, 30000);
         setInterval(updateBadges, 10000);
+        // ============================================
+// ОБНОВЛЕНИЕ ПРОВЕРКИ ПРИ ВХОДЕ
+// ============================================
 
+// Добавьте эту проверку в функцию initDashboard после получения профиля
+        if (profile.banned) {
+            document.body.innerHTML = `
+                <div class="container">
+                    <h1 style="color: var(--accent-red);">🚫 ДОСТУП ЗАПРЕЩЕН</h1>
+                    <p>Вы были забанены администратором.</p>
+                    ${profile.banned_at ? `<p>Дата: ${new Date(profile.banned_at).toLocaleDateString()}</p>` : ''}
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">Если вы считаете, что это ошибка, свяжитесь с администратором.</p>
+                    <a href="index.html" class="btn-primary">На главную</a>
+                </div>
+            `;
+    return;
+}
         const sendBtn = document.getElementById('send-message');
         if (sendBtn) sendBtn.addEventListener('click', sendMessage);
 
@@ -1402,23 +1418,8 @@ async function loadUsers() {
     }
 }
 
-// ============================================
-// ОБНОВЛЕНИЕ ПРОВЕРКИ ПРИ ВХОДЕ
-// ============================================
 
-// Добавьте эту проверку в функцию initDashboard после получения профиля
-if (profile.banned) {
-    document.body.innerHTML = `
-        <div class="container">
-            <h1 style="color: var(--accent-red);">🚫 ДОСТУП ЗАПРЕЩЕН</h1>
-            <p>Вы были забанены администратором.</p>
-            ${profile.banned_at ? `<p>Дата: ${new Date(profile.banned_at).toLocaleDateString()}</p>` : ''}
-            <p style="color: var(--text-muted); font-size: 0.9rem;">Если вы считаете, что это ошибка, свяжитесь с администратором.</p>
-            <a href="index.html" class="btn-primary">На главную</a>
-        </div>
-    `;
-    return;
-}
+
 
 
 
