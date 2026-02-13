@@ -1459,6 +1459,196 @@ async function loadUsers() {
         console.error('Ошибка загрузки пользователей:', error);
     }
 }
+// ============================================
+// PUSH-УВЕДОМЛЕНИЯ
+// ============================================
+
+// Функция преобразования base64 в Uint8Array (для VAPID ключа)
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+// Подписка на уведомления
+async function subscribeToNotifications() {
+    if (!currentUser) return;
+    
+    try {
+        if (!('Notification' in window)) {
+            console.log('Браузер не поддерживает уведомления');
+            return;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            console.log('Разрешение на уведомления не получено');
+            return;
+        }
+
+        const registration = await navigator.serviceWorker.ready;
+        
+        // Проверяем существующую подписку
+        let subscription = await registration.pushManager.getSubscription();
+        
+        if (!subscription) {
+            // Получаем VAPID публичный ключ (нужно сгенерировать)
+            const vapidPublicKey = 'YOUR_VAPID_PUBLIC_KEY';
+            
+            subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+            });
+        }
+
+        // Сохраняем подписку в Supabase
+        await supabase
+            .from('push_subscriptions')
+            .upsert({
+                user_id: currentUser.id,
+                subscription: subscription,
+                endpoint: subscription.endpoint,
+                updated_at: new Date().toISOString()
+            }, {
+                onConflict: 'endpoint'
+            });
+
+        console.log('Подписка на уведомления сохранена');
+        
+    } catch (error) {
+        console.error('Ошибка подписки на уведомления:', error);
+    }
+}
+
+// Отправка уведомления (вызывается из бэкенда)
+async function sendNotification(userId, title, body, data = {}) {
+    try {
+        // Получаем все подписки пользователя
+        const { data: subscriptions } = await supabase
+            .from('push_subscriptions')
+            .select('subscription')
+            .eq('user_id', userId);
+
+        if (!subscriptions || subscriptions.length === 0) return;
+
+        // Для каждой подписки отправляем уведомление
+        for (const sub of subscriptions) {
+            await fetch('/api/send-notification', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    subscription: sub.subscription,
+                    notification: {
+                        title: title,
+                        body: body,
+                        icon: '/icon-192.png',
+                        badge: '/badge-72.png',
+                        ...data
+                    }
+                })
+            });
+        }
+    } catch (error) {
+        console.error('Ошибка отправки уведомления:', error);
+    }
+}
+
+// Отправка уведомления о новом сообщении
+async function notifyNewMessage(message, receiverId) {
+    if (!message || !receiverId) return;
+    
+    const title = `💬 ${message.username}`;
+    const body = message.content.length > 50 
+        ? message.content.substring(0, 50) + '...' 
+        : message.content;
+    
+    await sendNotification(receiverId, title, body, {
+        messageId: message.id,
+        senderId: message.user_id,
+        url: '/dashboard.html?tab=pm&user=' + message.user_id
+    });
+}
+
+// Уведомление о новом пользователе (для админов)
+async function notifyNewUser(username, userId) {
+    // Получаем всех админов
+    const { data: admins } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'admin');
+
+    if (!admins) return;
+
+    for (const admin of admins) {
+        await sendNotification(
+            admin.id,
+            '👥 Новая заявка',
+            `Пользователь ${username} ожидает одобрения`,
+            { url: '/dashboard.html?tab=users' }
+        );
+    }
+}
+
+// Проверка поддержки уведомлений
+function checkNotificationSupport() {
+    if (!('Notification' in window)) {
+        console.log('Этот браузер не поддерживает уведомления');
+        return false;
+    }
+    
+    if (!('serviceWorker' in navigator)) {
+        console.log('Service Worker не поддерживается');
+        return false;
+    }
+    
+    if (!('PushManager' in window)) {
+        console.log('Push-уведомления не поддерживаются');
+        return false;
+    }
+    
+    return true;
+}
+
+// Запрос разрешения на уведомления
+async function requestNotificationPermission() {
+    if (!checkNotificationSupport()) return false;
+    
+    try {
+        const permission = await Notification.requestPermission();
+        
+        if (permission === 'granted') {
+            showNotification('✅ Уведомления включены');
+            await subscribeToNotifications();
+            return true;
+        } else if (permission === 'denied') {
+            showNotification('❌ Уведомления заблокированы', 'error');
+        } else {
+            showNotification('⚠️ Уведомления отключены', 'warning');
+        }
+        
+        return false;
+        
+    } catch (error) {
+        console.error('Ошибка запроса разрешения:', error);
+        return false;
+    }
+}
+
+// Добавьте в initDashboard вызов подписки
+// После загрузки пользователя:
+if (checkNotificationSupport()) {
+    // Проверяем статус уведомлений
+    if (Notification.permission === 'granted') {
+        subscribeToNotifications();
+    }
+}
 
 
 
