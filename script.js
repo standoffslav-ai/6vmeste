@@ -454,7 +454,7 @@ async function sendMessage() {
 }
 
 // ============================================
-// ЛИЧНЫЕ СООБЩЕНИЯ
+// ЛИЧНЫЕ СООБЩЕНИЯ - ИСПРАВЛЕННАЯ ВЕРСИЯ
 // ============================================
 
 async function sendPrivateMessage() {
@@ -469,21 +469,109 @@ async function sendPrivateMessage() {
     if (!content) return;
 
     try {
+        // Убираем поле username, оставляем только нужные поля
         const { error } = await supabase
             .from('private_messages')
             .insert([{
                 sender_id: currentUser.id,
                 receiver_id: selectedPMUser.id,
-                username: currentUser.username,
                 content: content
+                // username не отправляем!
             }]);
+
+        if (error) {
+            console.error('Детали ошибки:', error);
+            throw error;
+        }
+
+        input.value = '';
+        
+        // Добавляем сообщение в чат сразу (для оптимистичного UI)
+        const tempMsg = {
+            sender_id: currentUser.id,
+            receiver_id: selectedPMUser.id,
+            content: content,
+            created_at: new Date().toISOString()
+        };
+        addPMToChat(tempMsg);
+        
+    } catch (error) {
+        console.error('Ошибка отправки ЛС:', error);
+        showNotification('❌ Ошибка отправки: ' + error.message, 'error');
+    }
+}
+
+// Исправленная функция добавления сообщения в ЛС
+function addPMToChat(msg) {
+    const pmBox = document.getElementById('pm-chat-box');
+    if (!pmBox) return;
+    
+    const div = document.createElement('div');
+    div.className = 'message';
+    
+    // Определяем отправителя
+    let senderName = 'Неизвестно';
+    if (msg.sender_id === currentUser.id) {
+        senderName = 'Вы';
+    } else if (selectedPMUser && msg.sender_id === selectedPMUser.id) {
+        senderName = selectedPMUser.username;
+    } else if (msg.username) {
+        // Если вдруг есть username в старых сообщениях
+        senderName = msg.username;
+    }
+    
+    div.innerHTML = `<strong>${senderName}:</strong> ${msg.content}`;
+    
+    if (msg.image_url) {
+        div.innerHTML += `<br><img src="${msg.image_url}" style="max-width: 100px; max-height: 100px; border-radius: 4px;">`;
+    }
+    
+    pmBox.appendChild(div);
+    pmBox.scrollTop = pmBox.scrollHeight;
+}
+
+// Исправленная функция загрузки ЛС
+async function loadPrivateMessages(otherUserId) {
+    if (!currentUser || !otherUserId) return;
+    
+    try {
+        const { data, error } = await supabase
+            .from('private_messages')
+            .select(`
+                *,
+                sender:profiles!sender_id(username, role),
+                receiver:profiles!receiver_id(username, role)
+            `)
+            .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUser.id})`)
+            .order('created_at', { ascending: true });
 
         if (error) throw error;
 
-        input.value = '';
+        const pmBox = document.getElementById('pm-chat-box');
+        if (!pmBox) return;
+        
+        pmBox.innerHTML = '';
+
+        if (!data || data.length === 0) {
+            pmBox.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">Нет сообщений. Напишите первым!</div>';
+            return;
+        }
+
+        data.forEach(msg => {
+            // Добавляем username из связанной таблицы
+            if (msg.sender) {
+                msg.username = msg.sender.username;
+            }
+            addPMToChat(msg);
+        });
+        
+        pmBox.scrollTop = pmBox.scrollHeight;
     } catch (error) {
-        console.error('Ошибка отправки ЛС:', error);
-        showNotification('❌ Ошибка отправки', 'error');
+        console.error('Ошибка загрузки ЛС:', error);
+        const pmBox = document.getElementById('pm-chat-box');
+        if (pmBox) {
+            pmBox.innerHTML = '<div style="text-align: center; color: var(--accent-red); padding: 20px;">Ошибка загрузки сообщений</div>';
+        }
     }
 }
 
@@ -968,3 +1056,4 @@ async function initDashboard() {
 window.addEventListener('beforeunload', () => {
     window.blobUrls.forEach(url => URL.revokeObjectURL(url));
 });
+
