@@ -282,7 +282,20 @@ async function loadProfile() {
         if (statusEl) {
             statusEl.textContent = currentUser.approved ? '✅ Активен' : '⏳ Ожидает одобрения';
         }
-        
+        // В функции loadProfile добавьте:
+        const notifBtn = document.getElementById('enable-notifications');
+        if (notifBtn) {
+            notifBtn.addEventListener('click', requestNotificationPermission);
+    
+            // Обновляем текст кнопки в зависимости от статуса
+            if (Notification.permission === 'granted') {
+                notifBtn.textContent = '✅ Включены';
+                notifBtn.disabled = true;
+            } else if (Notification.permission === 'denied') {
+                notifBtn.textContent = '❌ Заблокированы';
+                notifBtn.disabled = true;
+            }
+        }
         if (createdEl) {
             if (currentUser.created_at) {
                 const date = new Date(currentUser.created_at);
@@ -1649,6 +1662,7 @@ if (checkNotificationSupport()) {
         subscribeToNotifications();
     }
 }
+
 
 
 
